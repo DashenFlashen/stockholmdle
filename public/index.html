@@ -785,7 +785,14 @@
         }
 
         async function calculateRoute(fromGid, toGid) {
-            const url = `${API_JOURNEY}?type_origin=any&type_destination=any&name_origin=${fromGid}&name_destination=${toGid}&calc_number_of_trips=1`;
+            // Use next Wednesday at noon to ensure service is running
+            const now = new Date();
+            const daysUntilWednesday = (3 - now.getDay() + 7) % 7 || 7;
+            const wednesday = new Date(now);
+            wednesday.setDate(now.getDate() + daysUntilWednesday);
+            const dateStr = wednesday.toISOString().split('T')[0];
+
+            const url = `${API_JOURNEY}?type_origin=any&type_destination=any&name_origin=${fromGid}&name_destination=${toGid}&calc_number_of_trips=1&date=${dateStr}&time=12:00`;
 
             const response = await fetch(url);
             if (!response.ok) throw new Error('Route calculation failed');
