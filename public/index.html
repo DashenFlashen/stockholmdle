@@ -5,13 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SL Gissaren</title>
     <style>
-        /* ABOUTME: Styles for SL Gissaren - Stockholm transit station guessing game */
+        /* ABOUTME: Styles for SL Gissaren - Stockholm rail station guessing game */
         /* ABOUTME: Dark theme inspired by Stockholm/SL branding */
 
         :root {
             --sl-blue: #0065A4;
             --sl-blue-dark: #004d7a;
             --metro-green: #19A339;
+            --metro-red: #e4002b;
+            --metro-blue: #0065A4;
             --accent-cyan: #00d4ff;
             --bg-dark: #1a1a2e;
             --bg-card: #252542;
@@ -213,10 +215,48 @@
         .feedback-detail {
             color: var(--text-secondary);
             font-size: 0.9rem;
+            margin-bottom: 0.5rem;
         }
+
+        .feedback-lines {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .shared-lines {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .line-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2rem;
+            height: 1.75rem;
+            padding: 0 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.875rem;
+            color: white;
+        }
+
+        .line-badge.metro-green { background: #19A339; }
+        .line-badge.metro-red { background: #e4002b; }
+        .line-badge.metro-blue { background: #0065A4; }
+        .line-badge.train { background: #ec619f; }
+        .line-badge.tram { background: #7c7c7c; }
 
         .feedback-win {
             background: linear-gradient(135deg, var(--metro-green), #0d7a25);
+        }
+
+        .feedback-lose {
+            background: linear-gradient(135deg, var(--error), #a02020);
         }
 
         .history-section {
@@ -245,6 +285,8 @@
             padding: 0.625rem 0.75rem;
             background: var(--bg-input);
             border-radius: 6px;
+            flex-wrap: wrap;
+            gap: 0.5rem;
         }
 
         .history-station {
@@ -266,46 +308,18 @@
             color: var(--warning);
         }
 
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            color: var(--text-secondary);
+        .history-lines {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-top: 0.25rem;
         }
 
-        .loading-spinner {
-            display: inline-block;
-            width: 24px;
-            height: 24px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--accent-cyan);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 0.5rem;
-            vertical-align: middle;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .error-message {
-            background: var(--bg-card);
-            border: 2px solid var(--error);
-            border-radius: 12px;
-            padding: 1.5rem;
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-
-        .error-message h3 {
-            color: var(--error);
-            margin-bottom: 0.5rem;
-        }
-
-        .error-message button {
-            margin-top: 1rem;
-            flex: none;
-            padding: 0.5rem 1.5rem;
+        .history-lines .line-badge {
+            height: 1.25rem;
+            min-width: 1.5rem;
+            font-size: 0.75rem;
         }
 
         .hidden {
@@ -331,24 +345,13 @@
     <div class="container">
         <header>
             <h1>SL Gissaren</h1>
-            <p class="subtitle">Gissa vilken station jag tänker på!</p>
+            <p class="subtitle">Gissa vilken tågstation jag tänker på!</p>
         </header>
 
-        <div id="loading" class="loading">
-            <span class="loading-spinner"></span>
-            Laddar stationer...
-        </div>
-
-        <div id="error" class="error-message hidden">
-            <h3>Kunde inte ladda stationer</h3>
-            <p>Kontrollera din internetanslutning och försök igen.</p>
-            <button onclick="loadStations()">Försök igen</button>
-        </div>
-
-        <div id="game" class="hidden">
+        <div id="game">
             <div class="stats-bar">
                 <div class="stat">
-                    <div class="stat-value" id="guess-count">0</div>
+                    <div class="stat-value" id="guess-count">0/6</div>
                     <div class="stat-label">Gissningar</div>
                 </div>
                 <div class="stat">
@@ -382,6 +385,7 @@
                 <div class="feedback-icon" id="feedback-icon"></div>
                 <div class="feedback-main" id="feedback-main"></div>
                 <div class="feedback-detail" id="feedback-detail"></div>
+                <div class="feedback-lines" id="feedback-lines"></div>
             </div>
 
             <div id="history-section" class="history-section hidden">
@@ -392,23 +396,253 @@
     </div>
 
     <script>
-        // ABOUTME: Game logic for SL Gissaren - Stockholm transit station guessing game
-        // ABOUTME: Fetches stations from Trafiklab API and calculates routes via Journey Planner
+        // ABOUTME: Game logic for SL Gissaren - Stockholm rail station guessing game
+        // ABOUTME: Uses hardcoded rail stations and calculates routes via Journey Planner
 
-        const API_SITES = 'https://transport.integration.sl.se/v1/sites';
+        const MAX_GUESSES = 6;
         const API_JOURNEY = 'https://journeyplanner.integration.sl.se/v2/trips';
+        const API_DEPARTURES = 'https://transport.integration.sl.se/v1/sites';
 
-        let stations = [];
+        // Hardcoded list of rail stations (metro, pendeltåg, lokaltåg)
+        const RAIL_STATIONS = [
+            { gid: 9091001000009110, name: "Abrahamsberg" },
+            { gid: 9091001000009248, name: "Aga" },
+            { gid: 9091001000009300, name: "Akalla" },
+            { gid: 9091001000003255, name: "Alby" },
+            { gid: 9091001000009683, name: "Altorp" },
+            { gid: 9091001000009112, name: "Alvik" },
+            { gid: 9091001000009511, name: "Arlanda C" },
+            { gid: 9091001000007981, name: "Arninge" },
+            { gid: 9091001000009293, name: "Aspudden" },
+            { gid: 9091001000009291, name: "Axelsberg" },
+            { gid: 9091001000009141, name: "Bagarmossen" },
+            { gid: 9091001000002066, name: "Baggeby" },
+            { gid: 9091001000009163, name: "Bandhagen" },
+            { gid: 9091001000003025, name: "Barkarby" },
+            { gid: 9091001000009202, name: "Bergshamra" },
+            { gid: 9091001000007758, name: "Björkhagen" },
+            { gid: 9091001000009105, name: "Blackeberg" },
+            { gid: 9091001000009187, name: "Blåsut" },
+            { gid: 9091001000006339, name: "Bodal" },
+            { gid: 9091001000009289, name: "Bredäng" },
+            { gid: 9091001000009109, name: "Brommaplan" },
+            { gid: 9091001000009636, name: "Bråvallavägen" },
+            { gid: 9091001000009627, name: "Bällsta" },
+            { gid: 9091001000003680, name: "Bällsta bro" },
+            { gid: 9091001000009710, name: "Bålsta" },
+            { gid: 9091001000009201, name: "Danderyds sjukhus" },
+            { gid: 9091001000001100, name: "Djurgårdsbron" },
+            { gid: 9091001000009635, name: "Djursholms Ekeby" },
+            { gid: 9091001000009637, name: "Djursholms Ösby" },
+            { gid: 9091001000009324, name: "Duvbo" },
+            { gid: 9091001000002118, name: "Eddavägen" },
+            { gid: 9091001000009621, name: "Ekskogen" },
+            { gid: 9091001000009634, name: "Enebyberg" },
+            { gid: 9091001000009167, name: "Enskede gård" },
+            { gid: 9091001000005182, name: "Ensta" },
+            { gid: 9091001000007597, name: "Farsta" },
+            { gid: 9091001000009180, name: "Farsta strand" },
+            { gid: 9091001000009424, name: "Fisksätra" },
+            { gid: 9091001000009283, name: "Fittja" },
+            { gid: 9091001000006607, name: "Flemingsberg" },
+            { gid: 9091001000009115, name: "Fridhemsplan" },
+            { gid: 9091001000009260, name: "Fruängen" },
+            { gid: 9091001000003415, name: "Frösunda" },
+            { gid: 9091001000009668, name: "Galoppfältet" },
+            { gid: 9091001000009193, name: "Gamla stan" },
+            { gid: 9091001000009168, name: "Globen" },
+            { gid: 9091001000009721, name: "Gröndalsviken" },
+            { gid: 9091001000009183, name: "Gubbängen" },
+            { gid: 9091001000009189, name: "Gullmarsplan" },
+            { gid: 9091001000009221, name: "Gärdet" },
+            { gid: 9091001000009240, name: "Gåshaga" },
+            { gid: 9091001000000955, name: "Gåshaga brygga" },
+            { gid: 9091001000009160, name: "Hagsätra" },
+            { gid: 9091001000009303, name: "Hallonbergen" },
+            { gid: 9091001000009281, name: "Hallunda" },
+            { gid: 9091001000009144, name: "Hammarbyhöjden" },
+            { gid: 9091001000009730, name: "Handen" },
+            { gid: 9091001000008247, name: "Haninge centrum" },
+            { gid: 9091001000009507, name: "Helenelund" },
+            { gid: 9091001000009725, name: "Hemfosa" },
+            { gid: 9091001000009432, name: "Henriksdal" },
+            { gid: 9091001000009320, name: "Hjulsta" },
+            { gid: 9091001000009295, name: "Hornstull" },
+            { gid: 9091001000009527, name: "Huddinge" },
+            { gid: 9091001000003134, name: "Husby" },
+            { gid: 9091001000009666, name: "Hägernäs" },
+            { gid: 9091001000009262, name: "Hägerstensåsen" },
+            { gid: 9091001000009505, name: "Häggvik" },
+            { gid: 9091001000009101, name: "Hässelby gård" },
+            { gid: 9091001000009100, name: "Hässelby strand" },
+            { gid: 9091001000009162, name: "Högdalen" },
+            { gid: 9091001000009123, name: "Höglandstorget" },
+            { gid: 9091001000009182, name: "Hökarängen" },
+            { gid: 9091001000009119, name: "Hötorget" },
+            { gid: 9091001000009423, name: "Igelboda" },
+            { gid: 9091001000009106, name: "Islandstorget" },
+            { gid: 9091001000009702, name: "Jakobsberg" },
+            { gid: 9091001000003326, name: "Johannelund" },
+            { gid: 9091001000009729, name: "Jordbro" },
+            { gid: 9091001000009542, name: "Järna" },
+            { gid: 9091001000009701, name: "Kallhäll" },
+            { gid: 9091001000009222, name: "Karlaplan" },
+            { gid: 9091001000002461, name: "Karlberg" },
+            { gid: 9091001000003685, name: "Karlsbodavägen" },
+            { gid: 9091001000006672, name: "Kista" },
+            { gid: 9091001000009245, name: "Kottla" },
+            { gid: 9091001000009628, name: "Kragstalund" },
+            { gid: 9091001000009727, name: "Krigslida" },
+            { gid: 9091001000009113, name: "Kristineberg" },
+            { gid: 9091001000009340, name: "Kungsträdgården" },
+            { gid: 9091001000004532, name: "Kungsängen" },
+            { gid: 9091001000009242, name: "Käppala" },
+            { gid: 9091001000009142, name: "Kärrtorp" },
+            { gid: 9091001000009620, name: "Kårsta" },
+            { gid: 9091001000009682, name: "Lahäll" },
+            { gid: 9091001000009055, name: "Larsberg" },
+            { gid: 9091001000002010, name: "Lidingö centrum" },
+            { gid: 9091001000009294, name: "Liljeholmen" },
+            { gid: 9091001000006255, name: "Lillängen" },
+            { gid: 9091001000008770, name: "Lindholmen" },
+            { gid: 9091001000001552, name: "Luma" },
+            { gid: 9091001000009297, name: "Mariatorget" },
+            { gid: 9091001000009284, name: "Masmo" },
+            { gid: 9091001000009191, name: "Medborgarplatsen" },
+            { gid: 9091001000009264, name: "Midsommarkransen" },
+            { gid: 9091001000009624, name: "Molnby" },
+            { gid: 9091001000009290, name: "Mälarhöjden" },
+            { gid: 9091001000009500, name: "Märsta" },
+            { gid: 9091001000001555, name: "Mårtensdal" },
+            { gid: 9091001000009638, name: "Mörby" },
+            { gid: 9091001000009200, name: "Mörby centrum" },
+            { gid: 9091001000009430, name: "Nacka" },
+            { gid: 9091001000009422, name: "Neglinge" },
+            { gid: 9091001000003655, name: "Nockeby" },
+            { gid: 9091001000009504, name: "Norrviken" },
+            { gid: 9091001000009280, name: "Norsborg" },
+            { gid: 9091001000001105, name: "Nybroplan" },
+            { gid: 9091001000009722, name: "Nynäsgård" },
+            { gid: 9091001000009720, name: "Nynäshamn" },
+            { gid: 9091001000009304, name: "Näckrosen" },
+            { gid: 9091001000009681, name: "Näsby allé" },
+            { gid: 9091001000009680, name: "Näsbypark" },
+            { gid: 9091001000009117, name: "Odenplan" },
+            { gid: 9091001000009122, name: "Olovslund" },
+            { gid: 9091001000009322, name: "Rinkeby" },
+            { gid: 9091001000006829, name: "Ropsten" },
+            { gid: 9091001000009501, name: "Rosersberg" },
+            { gid: 9091001000009503, name: "Rotebro" },
+            { gid: 9091001000009665, name: "Rydbo" },
+            { gid: 9091001000009104, name: "Råcksta" },
+            { gid: 9091001000009309, name: "Rådhuset" },
+            { gid: 9091001000009118, name: "Rådmansgatan" },
+            { gid: 9091001000009161, name: "Rågsved" },
+            { gid: 9091001000009523, name: "Rönninge" },
+            { gid: 9091001000009426, name: "Saltsjö-Duvnäs" },
+            { gid: 9091001000009429, name: "Saltsjö-Järla" },
+            { gid: 9091001000009420, name: "Saltsjöbaden" },
+            { gid: 9091001000009186, name: "Sandsborg" },
+            { gid: 9091001000009724, name: "Segersäng" },
+            { gid: 9091001000009431, name: "Sickla" },
+            { gid: 9091001000001550, name: "Sickla kaj" },
+            { gid: 9091001000009820, name: "Sickla udde" },
+            { gid: 9091001000001405, name: "Skansen" },
+            { gid: 9091001000009190, name: "Skanstull" },
+            { gid: 9091001000001830, name: "Skarpnäck" },
+            { gid: 9091001000009731, name: "Skogås" },
+            { gid: 9091001000009287, name: "Skärholmen" },
+            { gid: 9091001000009188, name: "Skärmarbrink" },
+            { gid: 9091001000009192, name: "Slussen" },
+            { gid: 9091001000009166, name: "Sockenplan" },
+            { gid: 9091001000009506, name: "Sollentuna" },
+            { gid: 9091001000009509, name: "Solna" },
+            { gid: 9091001000009305, name: "Solna centrum" },
+            { gid: 9091001000009326, name: "Solna strand" },
+            { gid: 9091001000009704, name: "Spånga" },
+            { gid: 9091001000009205, name: "Stadion" },
+            { gid: 9091001000009307, name: "Stadshagen" },
+            { gid: 9091001000009116, name: "St Eriksplan" },
+            { gid: 9091001000001080, name: "Stockholm City" },
+            { gid: 9091001000001079, name: "Stockholm Odenplan" },
+            { gid: 9091001000009530, name: "Stockholms södra" },
+            { gid: 9091001000009600, name: "Stockholms östra" },
+            { gid: 9091001000009639, name: "Stocksund" },
+            { gid: 9091001000009811, name: "Stora Essingen" },
+            { gid: 9091001000009111, name: "Stora mossen" },
+            { gid: 9091001000000817, name: "Storängen" },
+            { gid: 9091001000009164, name: "Stureby" },
+            { gid: 9091001000009528, name: "Stuvsta" },
+            { gid: 9091001000009325, name: "Sundbyberg" },
+            { gid: 9091001000009165, name: "Svedmyra" },
+            { gid: 9091001000002164, name: "Sätra" },
+            { gid: 9091001000009520, name: "Södertälje centrum" },
+            { gid: 9091001000009521, name: "Södertälje hamn" },
+            { gid: 9091001000009001, name: "T-Centralen" },
+            { gid: 9091001000009184, name: "Tallkrogen" },
+            { gid: 9091001000009442, name: "Tattby" },
+            { gid: 9091001000009204, name: "Tekniska högskolan" },
+            { gid: 9091001000009263, name: "Telefonplan" },
+            { gid: 9091001000009321, name: "Tensta" },
+            { gid: 9091001000009114, name: "Thorildsplan" },
+            { gid: 9091001000005308, name: "Tibble" },
+            { gid: 9091001000009443, name: "Tippen" },
+            { gid: 9091001000009252, name: "Torsvik" },
+            { gid: 9091001000003638, name: "Traneberg" },
+            { gid: 9091001000001603, name: "Trekanten" },
+            { gid: 9091001000009732, name: "Trångsund" },
+            { gid: 9091001000009525, name: "Tullinge" },
+            { gid: 9091001000009524, name: "Tumba" },
+            { gid: 9091001000009661, name: "Tunagård" },
+            { gid: 9091001000009726, name: "Tungelsta" },
+            { gid: 9091001000009669, name: "Täby centrum" },
+            { gid: 9091001000009629, name: "Täby kyrkby" },
+            { gid: 9091001000009508, name: "Ulriksdal" },
+            { gid: 9091001000003623, name: "Ulvsunda" },
+            { gid: 9091001000009203, name: "Universitetet" },
+            { gid: 9091001000009502, name: "Upplands Väsby" },
+            { gid: 9091001000006086, name: "Uppsala C" },
+            { gid: 9091001000001525, name: "Valla torg" },
+            { gid: 9091001000009626, name: "Vallentuna" },
+            { gid: 9091001000009685, name: "Vendevägen" },
+            { gid: 9091001000009667, name: "Viggbyholm" },
+            { gid: 9091001000009630, name: "Visinge" },
+            { gid: 9091001000003563, name: "Vreten" },
+            { gid: 9091001000009103, name: "Vällingby" },
+            { gid: 9091001000009728, name: "Västerhaninge" },
+            { gid: 9091001000004450, name: "Västertorp" },
+            { gid: 9091001000009306, name: "Västra skogen" },
+            { gid: 9091001000001689, name: "Vårberg" },
+            { gid: 9091001000009285, name: "Vårby gård" },
+            { gid: 9091001000001400, name: "Waldemarsudde" },
+            { gid: 9091001000009296, name: "Zinkensdamm" },
+            { gid: 9091001000009529, name: "Älvsjö" },
+            { gid: 9091001000003666, name: "Ängbybadet" },
+            { gid: 9091001000009107, name: "Ängbyplan" },
+            { gid: 9091001000009663, name: "Åkers Runö" },
+            { gid: 9091001000009662, name: "Åkersberga" },
+            { gid: 9091001000009108, name: "Åkeshov" },
+            { gid: 9091001000003653, name: "Åkeshovsvägen" },
+            { gid: 9091001000009531, name: "Årstaberg" },
+            { gid: 9091001000009807, name: "Årstadal" },
+            { gid: 9091001000009292, name: "Örnsberg" },
+            { gid: 9091001000009723, name: "Ösmo" },
+            { gid: 9091001000009206, name: "Östermalmstorg" },
+            { gid: 9091001000009660, name: "Österskär" },
+            { gid: 9091001000009522, name: "Östertälje" },
+        ];
+
+        let stations = RAIL_STATIONS;
         let targetStation = null;
+        let targetLines = [];
         let selectedStation = null;
         let guessHistory = [];
         let bestDistance = Infinity;
         let bestChanges = Infinity;
         let selectedIndex = -1;
+        let gameOver = false;
 
         // DOM elements
-        const loadingEl = document.getElementById('loading');
-        const errorEl = document.getElementById('error');
         const gameEl = document.getElementById('game');
         const inputEl = document.getElementById('station-input');
         const dropdownEl = document.getElementById('autocomplete-dropdown');
@@ -418,60 +652,100 @@
         const feedbackIconEl = document.getElementById('feedback-icon');
         const feedbackMainEl = document.getElementById('feedback-main');
         const feedbackDetailEl = document.getElementById('feedback-detail');
+        const feedbackLinesEl = document.getElementById('feedback-lines');
         const historySection = document.getElementById('history-section');
         const historyListEl = document.getElementById('history-list');
         const guessCountEl = document.getElementById('guess-count');
         const bestDistanceEl = document.getElementById('best-distance');
         const bestChangesEl = document.getElementById('best-changes');
 
-        async function loadStations() {
-            loadingEl.classList.remove('hidden');
-            errorEl.classList.add('hidden');
-            gameEl.classList.add('hidden');
+        function gidToSiteId(gid) {
+            // Extract site ID from gid (last 4-5 digits after removing prefix)
+            const str = gid.toString();
+            return parseInt(str.slice(-4));
+        }
 
+        async function getStationLines(gid) {
+            const siteId = gidToSiteId(gid);
             try {
-                const response = await fetch(API_SITES);
-                if (!response.ok) throw new Error('Failed to load stations');
+                const response = await fetch(`${API_DEPARTURES}/${siteId}/departures?forecast=60`);
+                if (!response.ok) return [];
 
                 const data = await response.json();
-                stations = data
-                    .filter(s => s.name && s.gid)
-                    .map(s => ({ gid: s.gid, name: s.name }))
-                    .sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+                const lines = new Map();
 
-                if (stations.length === 0) throw new Error('No stations found');
+                for (const dep of (data.departures || [])) {
+                    const line = dep.line;
+                    if (!line) continue;
 
-                loadingEl.classList.add('hidden');
-                gameEl.classList.remove('hidden');
-                startNewGame();
+                    const mode = line.transport_mode;
+                    const designation = line.designation;
+                    const group = line.group_of_lines || '';
 
-            } catch (err) {
-                console.error('Error loading stations:', err);
-                loadingEl.classList.add('hidden');
-                errorEl.classList.remove('hidden');
+                    if (mode === 'METRO' || mode === 'TRAIN' || mode === 'TRAM') {
+                        const key = `${mode}-${designation}`;
+                        if (!lines.has(key)) {
+                            lines.set(key, {
+                                mode,
+                                designation,
+                                group
+                            });
+                        }
+                    }
+                }
+
+                return Array.from(lines.values());
+            } catch (e) {
+                console.error('Error fetching lines:', e);
+                return [];
             }
         }
 
-        function startNewGame() {
+        function getLineClass(line) {
+            if (line.mode === 'METRO') {
+                const num = parseInt(line.designation);
+                if (num >= 17 && num <= 19) return 'metro-green';
+                if (num >= 13 && num <= 14) return 'metro-red';
+                if (num >= 10 && num <= 11) return 'metro-blue';
+            }
+            if (line.mode === 'TRAIN') return 'train';
+            return 'tram';
+        }
+
+        function renderLineBadges(lines) {
+            return lines.map(line =>
+                `<span class="line-badge ${getLineClass(line)}">${line.designation}</span>`
+            ).join('');
+        }
+
+        function findSharedLines(guessLines, targetLines) {
+            const targetSet = new Set(targetLines.map(l => `${l.mode}-${l.designation}`));
+            return guessLines.filter(l => targetSet.has(`${l.mode}-${l.designation}`));
+        }
+
+        async function startNewGame() {
             const randomIndex = Math.floor(Math.random() * stations.length);
             targetStation = stations[randomIndex];
-            console.log('Target station:', targetStation.name); // For debugging
+
+            // Fetch lines for target station
+            targetLines = await getStationLines(targetStation.gid);
 
             selectedStation = null;
             guessHistory = [];
             bestDistance = Infinity;
             bestChanges = Infinity;
             selectedIndex = -1;
+            gameOver = false;
 
             inputEl.value = '';
             inputEl.disabled = false;
             guessBtnEl.disabled = true;
             dropdownEl.classList.remove('active');
-            feedbackEl.classList.remove('active', 'feedback-win');
+            feedbackEl.classList.remove('active', 'feedback-win', 'feedback-lose');
             historySection.classList.add('hidden');
             historyListEl.innerHTML = '';
 
-            guessCountEl.textContent = '0';
+            guessCountEl.textContent = `0/${MAX_GUESSES}`;
             bestDistanceEl.textContent = '-';
             bestChangesEl.textContent = '-';
 
@@ -503,7 +777,7 @@
         }
 
         function selectStation(gid, name) {
-            selectedStation = { gid, name };
+            selectedStation = { gid: parseInt(gid), name };
             inputEl.value = name;
             dropdownEl.classList.remove('active');
             guessBtnEl.disabled = false;
@@ -554,8 +828,9 @@
         }
 
         async function makeGuess() {
-            if (!selectedStation) return;
+            if (!selectedStation || gameOver) return;
 
+            // Check for win
             if (selectedStation.gid === targetStation.gid) {
                 handleWin();
                 return;
@@ -565,7 +840,12 @@
             guessBtnEl.textContent = 'Beräknar...';
 
             try {
-                const result = await calculateRoute(selectedStation.gid, targetStation.gid);
+                const [result, guessLines] = await Promise.all([
+                    calculateRoute(selectedStation.gid, targetStation.gid),
+                    getStationLines(selectedStation.gid)
+                ]);
+
+                const sharedLines = findSharedLines(guessLines, targetLines);
 
                 const previousStops = guessHistory.length > 0
                     ? guessHistory[guessHistory.length - 1].stops
@@ -574,7 +854,8 @@
                 guessHistory.push({
                     station: selectedStation.name,
                     stops: result.stops,
-                    changes: result.changes
+                    changes: result.changes,
+                    sharedLines
                 });
 
                 if (result.stops < bestDistance) {
@@ -586,22 +867,41 @@
                     bestChangesEl.textContent = result.changes;
                 }
 
-                guessCountEl.textContent = guessHistory.length;
+                guessCountEl.textContent = `${guessHistory.length}/${MAX_GUESSES}`;
 
                 feedbackIconEl.textContent = getDistanceEmoji(result.stops);
                 feedbackMainEl.textContent = `${result.stops} ${result.stops === 1 ? 'station' : 'stationer'} bort`;
                 feedbackDetailEl.textContent = `${result.changes} ${result.changes === 1 ? 'byte' : 'byten'} krävs${getTemperatureHint(result.stops, previousStops)}`;
-                feedbackEl.classList.remove('feedback-win');
+
+                if (sharedLines.length > 0) {
+                    feedbackLinesEl.innerHTML = `
+                        <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">Gemensamma linjer:</div>
+                        <div class="shared-lines">${renderLineBadges(sharedLines)}</div>
+                    `;
+                } else {
+                    feedbackLinesEl.innerHTML = `
+                        <div style="color: var(--text-muted); font-size: 0.8rem;">Inga gemensamma linjer</div>
+                    `;
+                }
+
+                feedbackEl.classList.remove('feedback-win', 'feedback-lose');
                 feedbackEl.classList.add('active');
 
                 renderHistory();
+
+                // Check for loss
+                if (guessHistory.length >= MAX_GUESSES) {
+                    handleLoss();
+                    return;
+                }
 
             } catch (err) {
                 console.error('Error calculating route:', err);
                 feedbackIconEl.textContent = '❓';
                 feedbackMainEl.textContent = 'Kunde inte beräkna rutt';
                 feedbackDetailEl.textContent = 'Försök med en annan station';
-                feedbackEl.classList.remove('feedback-win');
+                feedbackLinesEl.innerHTML = '';
+                feedbackEl.classList.remove('feedback-win', 'feedback-lose');
                 feedbackEl.classList.add('active');
             }
 
@@ -613,23 +913,51 @@
         }
 
         function handleWin() {
+            gameOver = true;
+
             guessHistory.push({
                 station: targetStation.name,
                 stops: 0,
-                changes: 0
+                changes: 0,
+                sharedLines: targetLines
             });
 
-            guessCountEl.textContent = guessHistory.length;
+            guessCountEl.textContent = `${guessHistory.length}/${MAX_GUESSES}`;
 
             feedbackIconEl.textContent = '🎉';
             feedbackMainEl.textContent = 'Rätt!';
             feedbackDetailEl.textContent = `${targetStation.name} på ${guessHistory.length} ${guessHistory.length === 1 ? 'försök' : 'försök'}!`;
+            feedbackLinesEl.innerHTML = '';
+            feedbackEl.classList.remove('feedback-lose');
             feedbackEl.classList.add('active', 'feedback-win');
 
             inputEl.disabled = true;
             guessBtnEl.disabled = true;
 
             renderHistory();
+        }
+
+        function handleLoss() {
+            gameOver = true;
+
+            feedbackIconEl.textContent = '😢';
+            feedbackMainEl.textContent = 'Slut på gissningar!';
+            feedbackDetailEl.textContent = `Rätt svar: ${targetStation.name}`;
+
+            if (targetLines.length > 0) {
+                feedbackLinesEl.innerHTML = `
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">Linjer vid ${targetStation.name}:</div>
+                    <div class="shared-lines">${renderLineBadges(targetLines)}</div>
+                `;
+            } else {
+                feedbackLinesEl.innerHTML = '';
+            }
+
+            feedbackEl.classList.remove('feedback-win');
+            feedbackEl.classList.add('active', 'feedback-lose');
+
+            inputEl.disabled = true;
+            guessBtnEl.disabled = true;
         }
 
         function renderHistory() {
@@ -646,12 +974,16 @@
                         <span class="history-stops">${g.stops} st</span>
                         <span class="history-changes">${g.changes} byten</span>
                     </span>
+                    ${g.sharedLines && g.sharedLines.length > 0 ? `
+                        <div class="history-lines">${renderLineBadges(g.sharedLines)}</div>
+                    ` : ''}
                 </div>
             `).join('');
         }
 
         // Event listeners
         inputEl.addEventListener('input', (e) => {
+            if (gameOver) return;
             const query = e.target.value.trim();
             selectedStation = null;
             guessBtnEl.disabled = true;
@@ -662,6 +994,7 @@
         });
 
         inputEl.addEventListener('keydown', (e) => {
+            if (gameOver) return;
             const items = dropdownEl.querySelectorAll('.autocomplete-item');
 
             if (e.key === 'ArrowDown') {
@@ -691,6 +1024,7 @@
         });
 
         dropdownEl.addEventListener('click', (e) => {
+            if (gameOver) return;
             const item = e.target.closest('.autocomplete-item');
             if (item) {
                 selectStation(item.dataset.gid, item.dataset.name);
@@ -706,8 +1040,8 @@
             }
         });
 
-        // Start
-        loadStations();
+        // Start game
+        startNewGame();
     </script>
 </body>
 </html>
