@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SL Gissaren</title>
+    <style>
+        /* ABOUTME: Styles for SL Gissaren - Stockholm transit station guessing game */
+        /* ABOUTME: Dark theme inspired by Stockholm/SL branding */
+
+        :root {
+            --sl-blue: #0065A4;
+            --sl-blue-dark: #004d7a;
+            --metro-green: #19A339;
+            --accent-cyan: #00d4ff;
+            --bg-dark: #1a1a2e;
+            --bg-card: #252542;
+            --bg-input: #2d2d4a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --text-muted: #6a6a7a;
+            --border-color: #3a3a5a;
+            --success: #19A339;
+            --warning: #f0a030;
+            --error: #e04040;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: var(--accent-cyan);
+            margin-bottom: 0.25rem;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-cyan);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .input-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .autocomplete-wrapper {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .station-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            font-size: 1rem;
+            background: var(--bg-input);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .station-input:focus {
+            border-color: var(--sl-blue);
+        }
+
+        .station-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-input);
+            border: 2px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 240px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+
+        .autocomplete-dropdown.active {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: var(--sl-blue);
+        }
+
+        .buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        button {
+            flex: 1;
+            padding: 0.875rem 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-guess {
+            background: var(--sl-blue);
+            color: white;
+        }
+
+        .btn-guess:hover:not(:disabled) {
+            background: var(--sl-blue-dark);
+        }
+
+        .btn-new-game {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .btn-new-game:hover {
+            background: var(--border-color);
+        }
+
+        .feedback-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            text-align: center;
+            display: none;
+        }
+
+        .feedback-section.active {
+            display: block;
+        }
+
+        .feedback-icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-main {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .feedback-detail {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .feedback-win {
+            background: linear-gradient(135deg, var(--metro-green), #0d7a25);
+        }
+
+        .history-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .history-title {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.625rem 0.75rem;
+            background: var(--bg-input);
+            border-radius: 6px;
+        }
+
+        .history-station {
+            font-weight: 500;
+        }
+
+        .history-info {
+            display: flex;
+            gap: 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .history-stops {
+            color: var(--accent-cyan);
+        }
+
+        .history-changes {
+            color: var(--warning);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: var(--bg-card);
+            border: 2px solid var(--error);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .error-message h3 {
+            color: var(--error);
+            margin-bottom: 0.5rem;
+        }
+
+        .error-message button {
+            margin-top: 1rem;
+            flex: none;
+            padding: 0.5rem 1.5rem;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            .stats-bar {
+                gap: 1rem;
+            }
+
+            .stat-value {
+                font-size: 1.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SL Gissaren</h1>
+            <p class="subtitle">Gissa vilken station jag tänker på!</p>
+        </header>
+
+        <div id="loading" class="loading">
+            <span class="loading-spinner"></span>
+            Laddar stationer...
+        </div>
+
+        <div id="error" class="error-message hidden">
+            <h3>Kunde inte ladda stationer</h3>
+            <p>Kontrollera din internetanslutning och försök igen.</p>
+            <button onclick="loadStations()">Försök igen</button>
+        </div>
+
+        <div id="game" class="hidden">
+            <div class="stats-bar">
+                <div class="stat">
+                    <div class="stat-value" id="guess-count">0</div>
+                    <div class="stat-label">Gissningar</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="best-distance">-</div>
+                    <div class="stat-label">Närmast</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="best-changes">-</div>
+                    <div class="stat-label">Minst byten</div>
+                </div>
+            </div>
+
+            <div class="input-section">
+                <div class="autocomplete-wrapper">
+                    <input
+                        type="text"
+                        id="station-input"
+                        class="station-input"
+                        placeholder="Skriv en station..."
+                        autocomplete="off"
+                    >
+                    <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+                </div>
+                <div class="buttons">
+                    <button id="guess-btn" class="btn-guess" disabled>Gissa</button>
+                    <button id="new-game-btn" class="btn-new-game">Nytt spel</button>
+                </div>
+            </div>
+
+            <div id="feedback" class="feedback-section">
+                <div class="feedback-icon" id="feedback-icon"></div>
+                <div class="feedback-main" id="feedback-main"></div>
+                <div class="feedback-detail" id="feedback-detail"></div>
+            </div>
+
+            <div id="history-section" class="history-section hidden">
+                <div class="history-title">Tidigare gissningar</div>
+                <div id="history-list" class="history-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ABOUTME: Game logic for SL Gissaren - Stockholm transit station guessing game
+        // ABOUTME: Fetches stations from Trafiklab API and calculates routes via Journey Planner
+
+        const API_SITES = 'https://transport.integration.sl.se/v1/sites';
+        const API_JOURNEY = 'https://journeyplanner.integration.sl.se/v2/trips';
+
+        let stations = [];
+        let targetStation = null;
+        let selectedStation = null;
+        let guessHistory = [];
+        let bestDistance = Infinity;
+        let bestChanges = Infinity;
+        let selectedIndex = -1;
+
+        // DOM elements
+        const loadingEl = document.getElementById('loading');
+        const errorEl = document.getElementById('error');
+        const gameEl = document.getElementById('game');
+        const inputEl = document.getElementById('station-input');
+        const dropdownEl = document.getElementById('autocomplete-dropdown');
+        const guessBtnEl = document.getElementById('guess-btn');
+        const newGameBtnEl = document.getElementById('new-game-btn');
+        const feedbackEl = document.getElementById('feedback');
+        const feedbackIconEl = document.getElementById('feedback-icon');
+        const feedbackMainEl = document.getElementById('feedback-main');
+        const feedbackDetailEl = document.getElementById('feedback-detail');
+        const historySection = document.getElementById('history-section');
+        const historyListEl = document.getElementById('history-list');
+        const guessCountEl = document.getElementById('guess-count');
+        const bestDistanceEl = document.getElementById('best-distance');
+        const bestChangesEl = document.getElementById('best-changes');
+
+        async function loadStations() {
+            loadingEl.classList.remove('hidden');
+            errorEl.classList.add('hidden');
+            gameEl.classList.add('hidden');
+
+            try {
+                const response = await fetch(API_SITES);
+                if (!response.ok) throw new Error('Failed to load stations');
+
+                const data = await response.json();
+                stations = data
+                    .filter(s => s.name && s.gid)
+                    .map(s => ({ gid: s.gid, name: s.name }))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+
+                if (stations.length === 0) throw new Error('No stations found');
+
+                loadingEl.classList.add('hidden');
+                gameEl.classList.remove('hidden');
+                startNewGame();
+
+            } catch (err) {
+                console.error('Error loading stations:', err);
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        function startNewGame() {
+            const randomIndex = Math.floor(Math.random() * stations.length);
+            targetStation = stations[randomIndex];
+            console.log('Target station:', targetStation.name); // For debugging
+
+            selectedStation = null;
+            guessHistory = [];
+            bestDistance = Infinity;
+            bestChanges = Infinity;
+            selectedIndex = -1;
+
+            inputEl.value = '';
+            inputEl.disabled = false;
+            guessBtnEl.disabled = true;
+            dropdownEl.classList.remove('active');
+            feedbackEl.classList.remove('active', 'feedback-win');
+            historySection.classList.add('hidden');
+            historyListEl.innerHTML = '';
+
+            guessCountEl.textContent = '0';
+            bestDistanceEl.textContent = '-';
+            bestChangesEl.textContent = '-';
+
+            inputEl.focus();
+        }
+
+        function filterStations(query) {
+            if (!query) return [];
+            const lowerQuery = query.toLowerCase();
+            return stations.filter(s =>
+                s.name.toLowerCase().includes(lowerQuery)
+            ).slice(0, 10);
+        }
+
+        function renderDropdown(filtered) {
+            if (filtered.length === 0) {
+                dropdownEl.classList.remove('active');
+                return;
+            }
+
+            dropdownEl.innerHTML = filtered.map((s, i) => `
+                <div class="autocomplete-item${i === selectedIndex ? ' selected' : ''}"
+                     data-gid="${s.gid}" data-name="${s.name}">
+                    ${s.name}
+                </div>
+            `).join('');
+
+            dropdownEl.classList.add('active');
+        }
+
+        function selectStation(gid, name) {
+            selectedStation = { gid, name };
+            inputEl.value = name;
+            dropdownEl.classList.remove('active');
+            guessBtnEl.disabled = false;
+            selectedIndex = -1;
+        }
+
+        async function calculateRoute(fromGid, toGid) {
+            const url = `${API_JOURNEY}?type_origin=any&type_destination=any&name_origin=${fromGid}&name_destination=${toGid}&calc_number_of_trips=1`;
+
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Route calculation failed');
+
+            const data = await response.json();
+
+            if (!data.journeys || data.journeys.length === 0) {
+                throw new Error('No route found');
+            }
+
+            const journey = data.journeys[0];
+            const changes = journey.interchanges || 0;
+
+            let totalStops = 0;
+            if (journey.legs) {
+                for (const leg of journey.legs) {
+                    if (leg.stopSequence) {
+                        totalStops += leg.stopSequence.length - 1;
+                    }
+                }
+            }
+
+            return { stops: totalStops, changes };
+        }
+
+        function getDistanceEmoji(stops) {
+            if (stops === 0) return '🎉';
+            if (stops <= 2) return '🔥';
+            if (stops <= 5) return '😊';
+            if (stops <= 10) return '🤔';
+            if (stops <= 20) return '😅';
+            return '😰';
+        }
+
+        function getTemperatureHint(currentStops, previousStops) {
+            if (previousStops === null) return '';
+            if (currentStops < previousStops) return ' · Varmare! 🔥';
+            if (currentStops > previousStops) return ' · Kallare ❄️';
+            return ' · Samma avstånd';
+        }
+
+        async function makeGuess() {
+            if (!selectedStation) return;
+
+            if (selectedStation.gid === targetStation.gid) {
+                handleWin();
+                return;
+            }
+
+            guessBtnEl.disabled = true;
+            guessBtnEl.textContent = 'Beräknar...';
+
+            try {
+                const result = await calculateRoute(selectedStation.gid, targetStation.gid);
+
+                const previousStops = guessHistory.length > 0
+                    ? guessHistory[guessHistory.length - 1].stops
+                    : null;
+
+                guessHistory.push({
+                    station: selectedStation.name,
+                    stops: result.stops,
+                    changes: result.changes
+                });
+
+                if (result.stops < bestDistance) {
+                    bestDistance = result.stops;
+                    bestDistanceEl.textContent = result.stops;
+                }
+                if (result.changes < bestChanges) {
+                    bestChanges = result.changes;
+                    bestChangesEl.textContent = result.changes;
+                }
+
+                guessCountEl.textContent = guessHistory.length;
+
+                feedbackIconEl.textContent = getDistanceEmoji(result.stops);
+                feedbackMainEl.textContent = `${result.stops} ${result.stops === 1 ? 'station' : 'stationer'} bort`;
+                feedbackDetailEl.textContent = `${result.changes} ${result.changes === 1 ? 'byte' : 'byten'} krävs${getTemperatureHint(result.stops, previousStops)}`;
+                feedbackEl.classList.remove('feedback-win');
+                feedbackEl.classList.add('active');
+
+                renderHistory();
+
+            } catch (err) {
+                console.error('Error calculating route:', err);
+                feedbackIconEl.textContent = '❓';
+                feedbackMainEl.textContent = 'Kunde inte beräkna rutt';
+                feedbackDetailEl.textContent = 'Försök med en annan station';
+                feedbackEl.classList.remove('feedback-win');
+                feedbackEl.classList.add('active');
+            }
+
+            inputEl.value = '';
+            selectedStation = null;
+            guessBtnEl.textContent = 'Gissa';
+            guessBtnEl.disabled = true;
+            inputEl.focus();
+        }
+
+        function handleWin() {
+            guessHistory.push({
+                station: targetStation.name,
+                stops: 0,
+                changes: 0
+            });
+
+            guessCountEl.textContent = guessHistory.length;
+
+            feedbackIconEl.textContent = '🎉';
+            feedbackMainEl.textContent = 'Rätt!';
+            feedbackDetailEl.textContent = `${targetStation.name} på ${guessHistory.length} ${guessHistory.length === 1 ? 'försök' : 'försök'}!`;
+            feedbackEl.classList.add('active', 'feedback-win');
+
+            inputEl.disabled = true;
+            guessBtnEl.disabled = true;
+
+            renderHistory();
+        }
+
+        function renderHistory() {
+            if (guessHistory.length === 0) {
+                historySection.classList.add('hidden');
+                return;
+            }
+
+            historySection.classList.remove('hidden');
+            historyListEl.innerHTML = [...guessHistory].reverse().map(g => `
+                <div class="history-item">
+                    <span class="history-station">${g.station}</span>
+                    <span class="history-info">
+                        <span class="history-stops">${g.stops} st</span>
+                        <span class="history-changes">${g.changes} byten</span>
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // Event listeners
+        inputEl.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            selectedStation = null;
+            guessBtnEl.disabled = true;
+            selectedIndex = -1;
+
+            const filtered = filterStations(query);
+            renderDropdown(filtered);
+        });
+
+        inputEl.addEventListener('keydown', (e) => {
+            const items = dropdownEl.querySelectorAll('.autocomplete-item');
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                items.forEach((item, i) => {
+                    item.classList.toggle('selected', i === selectedIndex);
+                });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                items.forEach((item, i) => {
+                    item.classList.toggle('selected', i === selectedIndex);
+                });
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selectedIndex >= 0 && items[selectedIndex]) {
+                    const item = items[selectedIndex];
+                    selectStation(item.dataset.gid, item.dataset.name);
+                } else if (selectedStation) {
+                    makeGuess();
+                }
+            } else if (e.key === 'Escape') {
+                dropdownEl.classList.remove('active');
+                selectedIndex = -1;
+            }
+        });
+
+        dropdownEl.addEventListener('click', (e) => {
+            const item = e.target.closest('.autocomplete-item');
+            if (item) {
+                selectStation(item.dataset.gid, item.dataset.name);
+            }
+        });
+
+        guessBtnEl.addEventListener('click', makeGuess);
+        newGameBtnEl.addEventListener('click', startNewGame);
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.autocomplete-wrapper')) {
+                dropdownEl.classList.remove('active');
+            }
+        });
+
+        // Start
+        loadStations();
+    </script>
+</body>
+</html>
