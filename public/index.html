@@ -188,6 +188,19 @@
             background: var(--border-color);
         }
 
+        .btn-give-up {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+        }
+
+        .btn-give-up:hover:not(:disabled) {
+            color: var(--text-secondary);
+            border-color: var(--text-muted);
+        }
+
         .feedback-section {
             background: var(--bg-card);
             border-radius: 12px;
@@ -378,6 +391,7 @@
                 <div class="buttons">
                     <button id="guess-btn" class="btn-guess" disabled>Gissa</button>
                     <button id="new-game-btn" class="btn-new-game">Nytt spel</button>
+                    <button id="give-up-btn" class="btn-give-up">Ge upp</button>
                 </div>
             </div>
 
@@ -648,6 +662,7 @@
         const dropdownEl = document.getElementById('autocomplete-dropdown');
         const guessBtnEl = document.getElementById('guess-btn');
         const newGameBtnEl = document.getElementById('new-game-btn');
+        const giveUpBtnEl = document.getElementById('give-up-btn');
         const feedbackEl = document.getElementById('feedback');
         const feedbackIconEl = document.getElementById('feedback-icon');
         const feedbackMainEl = document.getElementById('feedback-main');
@@ -740,6 +755,7 @@
             inputEl.value = '';
             inputEl.disabled = false;
             guessBtnEl.disabled = true;
+            giveUpBtnEl.disabled = false;
             dropdownEl.classList.remove('active');
             feedbackEl.classList.remove('active', 'feedback-win', 'feedback-lose');
             historySection.classList.add('hidden');
@@ -965,6 +981,32 @@
 
             inputEl.disabled = true;
             guessBtnEl.disabled = true;
+            giveUpBtnEl.disabled = true;
+        }
+
+        function giveUp() {
+            if (gameOver) return;
+            gameOver = true;
+
+            feedbackIconEl.textContent = '🏳️';
+            feedbackMainEl.textContent = targetStation.name;
+            feedbackDetailEl.textContent = `Du gav upp efter ${guessHistory.length} ${guessHistory.length === 1 ? 'gissning' : 'gissningar'}`;
+
+            if (targetLines.length > 0) {
+                feedbackLinesEl.innerHTML = `
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">Linjer vid ${targetStation.name}:</div>
+                    <div class="shared-lines">${renderLineBadges(targetLines)}</div>
+                `;
+            } else {
+                feedbackLinesEl.innerHTML = '';
+            }
+
+            feedbackEl.classList.remove('feedback-win');
+            feedbackEl.classList.add('active', 'feedback-lose');
+
+            inputEl.disabled = true;
+            guessBtnEl.disabled = true;
+            giveUpBtnEl.disabled = true;
         }
 
         function renderHistory() {
@@ -1040,6 +1082,7 @@
 
         guessBtnEl.addEventListener('click', makeGuess);
         newGameBtnEl.addEventListener('click', startNewGame);
+        giveUpBtnEl.addEventListener('click', giveUp);
 
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.autocomplete-wrapper')) {
