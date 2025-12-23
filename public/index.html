@@ -616,11 +616,14 @@
             return parseInt(gid.toString().slice(-4));
         }
 
-        async function getStationLines(gid) {
+        async function getStationLines(gid, stationName = 'unknown') {
             const siteId = gidToSiteId(gid);
             try {
                 const response = await fetch(`${API_DEPARTURES}/${siteId}/departures?forecast=60`);
-                if (!response.ok) return [];
+                if (!response.ok) {
+                    console.error(`[getStationLines] API error for ${stationName} (site ${siteId}): ${response.status}`);
+                    return [];
+                }
 
                 const data = await response.json();
                 const lines = new Map();
@@ -645,9 +648,11 @@
                     }
                 }
 
-                return Array.from(lines.values());
+                const result = Array.from(lines.values());
+                console.log(`[getStationLines] ${stationName}: ${result.map(l => l.designation).join(', ') || 'none'}`);
+                return result;
             } catch (e) {
-                console.error('Error fetching lines:', e);
+                console.error(`[getStationLines] Exception for ${stationName} (site ${siteId}):`, e);
                 return [];
             }
         }
@@ -675,10 +680,23 @@
         }
 
         async function startNewGame() {
-            targetStation = getRandomStation();
+            // Try up to 3 times to get a station with valid line data
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                targetStation = getRandomStation();
+                targetLines = await getStationLines(targetStation.gid, targetStation.name);
 
-            // Fetch lines for target station
-            targetLines = await getStationLines(targetStation.gid);
+                if (targetLines.length > 0) {
+                    console.log(`[startNewGame] Target: ${targetStation.name} with ${targetLines.length} lines`);
+                    break;
+                }
+
+                console.warn(`[startNewGame] Attempt ${attempt}: No lines for ${targetStation.name}, retrying...`);
+            }
+
+            if (targetLines.length === 0) {
+                console.error('[startNewGame] Failed to get lines after 3 attempts');
+                alert('Kunde inte hämta linjedata. Försök igen.');
+            }
 
             selectedStation = null;
             guessHistory = [];
@@ -801,10 +819,11 @@
             try {
                 const [result, guessLines] = await Promise.all([
                     calculateRoute(selectedStation.gid, targetStation.gid),
-                    getStationLines(selectedStation.gid)
+                    getStationLines(selectedStation.gid, selectedStation.name)
                 ]);
 
                 const sharedLines = findSharedLines(guessLines, targetLines);
+                console.log(`[makeGuess] ${selectedStation.name} -> ${targetStation.name}: guessLines=[${guessLines.map(l => l.designation)}], targetLines=[${targetLines.map(l => l.designation)}], shared=[${sharedLines.map(l => l.designation)}]`);
 
                 const previousStops = guessHistory.length > 0
                     ? guessHistory[guessHistory.length - 1].stops
