@@ -411,7 +411,7 @@
 
     <script>
         // ABOUTME: Game logic for SL Gissaren - Stockholm metro/pendeltåg station guessing game
-        // ABOUTME: Daily challenge using date-seeded station selection
+        // ABOUTME: Random station selection with unlimited replays
 
         const MAX_GUESSES = 6;
         const API_JOURNEY = 'https://journeyplanner.integration.sl.se/v2/trips';
@@ -580,16 +580,8 @@
 
         let stations = RAIL_STATIONS;
 
-        // Generate daily station using date as seed
-        function getDailyStation() {
-            const today = new Date();
-            const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-            let hash = 0;
-            for (let i = 0; i < dateStr.length; i++) {
-                hash = ((hash << 5) - hash) + dateStr.charCodeAt(i);
-                hash = hash & hash;
-            }
-            const index = Math.abs(hash) % stations.length;
+        function getRandomStation() {
+            const index = Math.floor(Math.random() * stations.length);
             return stations[index];
         }
         let targetStation = null;
@@ -683,7 +675,7 @@
         }
 
         async function startNewGame() {
-            targetStation = getDailyStation();
+            targetStation = getRandomStation();
 
             // Fetch lines for target station
             targetLines = await getStationLines(targetStation.gid);
