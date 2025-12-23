@@ -736,7 +736,7 @@
         }
 
         function selectStation(gid, name) {
-            selectedStation = { gid: parseInt(gid), name };
+            selectedStation = { gid: gid.toString(), name };
             inputEl.value = name;
             dropdownEl.classList.remove('active');
             guessBtnEl.disabled = false;
@@ -796,8 +796,8 @@
         async function makeGuess() {
             if (!selectedStation || gameOver) return;
 
-            // Check for win
-            if (selectedStation.gid === targetStation.gid) {
+            // Check for win (compare as strings to avoid JS number precision issues)
+            if (selectedStation.gid.toString() === targetStation.gid.toString()) {
                 handleWin();
                 return;
             }
