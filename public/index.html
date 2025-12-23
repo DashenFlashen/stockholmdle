@@ -743,7 +743,8 @@
             wednesday.setDate(now.getDate() + daysUntilWednesday);
             const dateStr = wednesday.toISOString().split('T')[0];
 
-            const url = `${API_JOURNEY}?type_origin=any&type_destination=any&name_origin=${fromGid}&name_destination=${toGid}&calc_number_of_trips=1&date=${dateStr}&time=12:00`;
+            // incl_mot: 0=pendeltåg, 2=metro, 4=tram, 5=bus, 9=ferry, 10=on-demand, 14=national train, 19=närtrafik
+            const url = `${API_JOURNEY}?type_origin=any&type_destination=any&name_origin=${fromGid}&name_destination=${toGid}&calc_number_of_trips=1&date=${dateStr}&time=12:00&incl_mot_5=false&incl_mot_9=false&incl_mot_10=false&incl_mot_19=false`;
 
             const response = await fetch(url);
             if (!response.ok) throw new Error('Route calculation failed');
