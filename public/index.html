@@ -264,6 +264,22 @@
         .line-badge.train { background: #ec619f; }
         .line-badge.tram { background: #7c7c7c; }
 
+        .walking-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-input);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .walking-icon {
+            font-size: 1rem;
+        }
+
         .feedback-win {
             background: linear-gradient(135deg, var(--metro-green), #0d7a25);
         }
@@ -674,6 +690,16 @@
             ).join('');
         }
 
+        function renderWalkingInfo(walkingLegs) {
+            if (!walkingLegs || walkingLegs.length === 0) return '';
+            return walkingLegs.map(w =>
+                `<div class="walking-info">
+                    <span class="walking-icon">🚶</span>
+                    <span>${w.from} → ${w.to} (${w.minutes} min)</span>
+                </div>`
+            ).join('');
+        }
+
         function findSharedLines(guessLines, targetLines) {
             const targetSet = new Set(targetLines.map(l => `${l.mode}-${l.designation}`));
             return guessLines.filter(l => targetSet.has(`${l.mode}-${l.designation}`));
@@ -777,15 +803,27 @@
             const changes = journey.interchanges || 0;
 
             let totalStops = 0;
+            let walkingLegs = [];
+
             if (journey.legs) {
                 for (const leg of journey.legs) {
+                    const product = leg.transportation?.product;
+                    const isWalking = product?.class === 99 || product?.name === 'footpath';
+
+                    if (isWalking) {
+                        const fromName = leg.origin?.parent?.disassembledName || leg.origin?.name || '?';
+                        const toName = leg.destination?.parent?.disassembledName || leg.destination?.name || '?';
+                        const durationMin = Math.round((leg.duration || 0) / 60);
+                        walkingLegs.push({ from: fromName, to: toName, minutes: durationMin });
+                    }
+
                     if (leg.stopSequence) {
                         totalStops += leg.stopSequence.length - 1;
                     }
                 }
             }
 
-            return { stops: totalStops, changes };
+            return { stops: totalStops, changes, walkingLegs };
         }
 
         function getDistanceEmoji(stops) {
@@ -833,7 +871,8 @@
                     station: selectedStation.name,
                     stops: result.stops,
                     changes: result.changes,
-                    sharedLines
+                    sharedLines,
+                    walkingLegs: result.walkingLegs
                 });
 
                 if (result.stops < bestDistance) {
@@ -851,16 +890,24 @@
                 feedbackMainEl.textContent = `${result.stops} ${result.stops === 1 ? 'station' : 'stationer'} bort`;
                 feedbackDetailEl.textContent = `${result.changes} ${result.changes === 1 ? 'byte' : 'byten'} krävs${getTemperatureHint(result.stops, previousStops)}`;
 
+                let feedbackHtml = '';
                 if (sharedLines.length > 0) {
-                    feedbackLinesEl.innerHTML = `
+                    feedbackHtml += `
                         <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">Gemensamma linjer:</div>
                         <div class="shared-lines">${renderLineBadges(sharedLines)}</div>
                     `;
                 } else {
-                    feedbackLinesEl.innerHTML = `
+                    feedbackHtml += `
                         <div style="color: var(--text-muted); font-size: 0.8rem;">Inga gemensamma linjer</div>
                     `;
                 }
+                if (result.walkingLegs && result.walkingLegs.length > 0) {
+                    feedbackHtml += `
+                        <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.75rem;">Gångväg ingår:</div>
+                        ${renderWalkingInfo(result.walkingLegs)}
+                    `;
+                }
+                feedbackLinesEl.innerHTML = feedbackHtml;
 
                 feedbackEl.classList.remove('feedback-win', 'feedback-lose');
                 feedbackEl.classList.add('active');
@@ -977,6 +1024,7 @@
                     <span class="history-info">
                         <span class="history-stops">${g.stops} st</span>
                         <span class="history-changes">${g.changes} byten</span>
+                        ${g.walkingLegs && g.walkingLegs.length > 0 ? '<span style="color: var(--text-muted);">🚶</span>' : ''}
                     </span>
                     ${g.sharedLines && g.sharedLines.length > 0 ? `
                         <div class="history-lines">${renderLineBadges(g.sharedLines)}</div>
